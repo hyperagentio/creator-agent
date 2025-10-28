@@ -16,7 +16,7 @@ Copy `.env` file and update with your credentials:
 
 ```bash
 OPENAI_API_KEY=sk-your-key-here
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+PRIVATE_KEY=private-key-here
 RPC_URL=http://127.0.0.1:8547
 CHAIN_ID=412346
 JOBS_MODULE_ADDRESS=0x0000000000000000000000000000000000000555
