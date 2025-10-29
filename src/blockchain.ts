@@ -31,6 +31,7 @@ export const walletClient = createWalletClient({
 export async function createMultihopJob(steps: JobStepParams[]): Promise<{
   txHash: `0x${string}`;
   jobIds: string[];
+  multihopId: string;
 }> {
   console.log('Creating multihop job with steps:', steps.length);
   
@@ -63,6 +64,20 @@ export async function createMultihopJob(steps: JobStepParams[]): Promise<{
 
   console.log('Transaction confirmed, block:', receipt.blockNumber);
 
+  // Parse CreatedMultihopJob event from receipt  
+  const createdMultihopEvents = parseEventLogs({
+    abi: HyptJobsABI,
+    logs: receipt.logs,
+    eventName: 'CreatedMultihopJob'
+  });
+
+  if (createdMultihopEvents.length === 0) {
+    throw new Error('No CreatedMultihopJob event found in receipt');
+  }
+
+  const multihopId = createdMultihopEvents[0].args.multihopID as string;
+  console.log('Multihop ID:', multihopId);
+
   // Parse CreatedJob events from receipt
   const createdJobEvents = parseEventLogs({
     abi: HyptJobsABI,
@@ -77,7 +92,7 @@ export async function createMultihopJob(steps: JobStepParams[]): Promise<{
     throw new Error(`Expected ${steps.length} jobs, got ${jobIds.length}`);
   }
 
-  return { txHash, jobIds };
+  return { txHash, jobIds, multihopId };
 }
 
 export async function getJobOutput(jobId: string): Promise<string> {

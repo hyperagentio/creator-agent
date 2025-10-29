@@ -49,8 +49,11 @@ export class CreatorAgent {
         message: 'Creating multihop job on blockchain...' 
       });
 
-      const { txHash, jobIds } = await createMultihopJob(steps);
+      const { txHash, jobIds, multihopId } = await createMultihopJob(steps);
       tracking.stepJobIds = jobIds;
+      
+      tracking.multihopId = multihopId;
+      console.log("MULTIHOP ID: ", multihopId);
 
       console.log(`[${trackingId}] Multihop created, tx:`, txHash);
       this.sendSSE(trackingId, { type: 'multihop_created', multihopId: txHash });
@@ -82,21 +85,24 @@ export class CreatorAgent {
     const tracking = this.tracking.get(trackingId);
     if (!tracking) return;
 
-    console.log(`[${trackingId}] Starting event listeners for jobs:`, tracking.stepJobIds);
+    console.log(`[${trackingId}] Starting event listeners for multihop:`, tracking.multihopId);
 
-    // Listen for AcceptedJob events
+    // Listen for AcceptedMultihopJobStep events
     const unwatch1 = publicClient.watchContractEvent({
       address: config.jobsModuleAddress,
       abi: HyptJobsABI,
-      eventName: 'AcceptedJob',
+      eventName: 'AcceptedMultihopJobStep',
       onLogs: (logs) => {
         for (const log of logs) {
-          const jobId = log.args.jobID as string;
-          const stepIndex = tracking.stepJobIds.indexOf(jobId);
+          const multihopID = log.args.multihopID as string;
+          const stepIndex = Number(log.args.stepIndex);
           
-          if (stepIndex !== -1) {
-            console.log(`[${trackingId}] Job ${stepIndex} accepted:`, jobId);
+          // Check if this event is for our multihop job
+          if (multihopID === tracking.multihopId) {
+            console.log(`[${trackingId}] Step ${stepIndex} accepted`);
             tracking.stepStatuses[stepIndex] = 'accepted';
+            
+            const jobId = tracking.stepJobIds[stepIndex];
             this.sendSSE(trackingId, {
               type: 'job_accepted',
               jobId,
@@ -107,19 +113,20 @@ export class CreatorAgent {
         }
       }
     });
-
-    // Listen for CompletedJob events
+    
+    // Listen for CompletedMultihopJobStep events
     const unwatch2 = publicClient.watchContractEvent({
       address: config.jobsModuleAddress,
       abi: HyptJobsABI,
-      eventName: 'CompletedJob',
+      eventName: 'CompletedMultihopJobStep',
       onLogs: async (logs) => {
         for (const log of logs) {
-          const jobId = log.args.jobID as string;
-          const stepIndex = tracking.stepJobIds.indexOf(jobId);
+          const multihopID = log.args.multihopID as string;
+          const stepIndex = Number(log.args.stepIndex);
           
-          if (stepIndex !== -1) {
-            console.log(`[${trackingId}] Job ${stepIndex} completed:`, jobId);
+          // Check if this event is for our multihop job
+          if (multihopID === tracking.multihopId) {
+            console.log(`[${trackingId}] Step ${stepIndex} completed`);
             tracking.stepStatuses[stepIndex] = 'completed';
 
             // For demo, we'll use placeholder output URLs
@@ -127,6 +134,7 @@ export class CreatorAgent {
             const outputUrl = `https://drive.google.com/file/step${stepIndex + 1}`;
             tracking.outputs[stepIndex] = outputUrl;
 
+            const jobId = tracking.stepJobIds[stepIndex];
             this.sendSSE(trackingId, {
               type: 'job_completed',
               jobId,
