@@ -51,12 +51,11 @@ export class CreatorAgent {
 
       const { txHash, jobIds, multihopId } = await createMultihopJob(steps);
       tracking.stepJobIds = jobIds;
-      
       tracking.multihopId = multihopId;
-      console.log("MULTIHOP ID: ", multihopId);
 
       console.log(`[${trackingId}] Multihop created, tx:`, txHash);
-      this.sendSSE(trackingId, { type: 'multihop_created', multihopId: txHash });
+      console.log(`[${trackingId}] Multihop ID:`, multihopId);
+      this.sendSSE(trackingId, { type: 'multihop_created', multihopId });
 
       // Send individual job created events
       jobIds.forEach((jobId, index) => {
@@ -113,7 +112,7 @@ export class CreatorAgent {
         }
       }
     });
-    
+
     // Listen for CompletedMultihopJobStep events
     const unwatch2 = publicClient.watchContractEvent({
       address: config.jobsModuleAddress,
@@ -129,18 +128,33 @@ export class CreatorAgent {
             console.log(`[${trackingId}] Step ${stepIndex} completed`);
             tracking.stepStatuses[stepIndex] = 'completed';
 
-            // For demo, we'll use placeholder output URLs
-            // In production, this would come from the event or contract storage
-            const outputUrl = `https://drive.google.com/file/step${stepIndex + 1}`;
-            tracking.outputs[stepIndex] = outputUrl;
-
             const jobId = tracking.stepJobIds[stepIndex];
-            this.sendSSE(trackingId, {
-              type: 'job_completed',
-              jobId,
-              stepIndex,
-              outputUrl
-            });
+            
+            // Get the actual output URL from the contract
+            try {
+              const outputUrl = await getJobOutput(jobId);
+              tracking.outputs[stepIndex] = outputUrl;
+              console.log(`[${trackingId}] Output URL for step ${stepIndex}:`, outputUrl);
+
+              this.sendSSE(trackingId, {
+                type: 'job_completed',
+                jobId,
+                stepIndex,
+                outputUrl
+              });
+            } catch (error) {
+              console.error(`[${trackingId}] Failed to get output URL for step ${stepIndex}:`, error);
+              // Use fallback
+              const fallbackUrl = `https://drive.google.com/file/step${stepIndex + 1}`;
+              tracking.outputs[stepIndex] = fallbackUrl;
+              
+              this.sendSSE(trackingId, {
+                type: 'job_completed',
+                jobId,
+                stepIndex,
+                outputUrl: fallbackUrl
+              });
+            }
 
             // Check if all jobs are complete
             if (tracking.stepStatuses.every(s => s === 'completed')) {

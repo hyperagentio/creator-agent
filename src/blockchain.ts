@@ -98,18 +98,16 @@ export async function createMultihopJob(steps: JobStepParams[]): Promise<{
 export async function getJobOutput(jobId: string): Promise<string> {
   console.log('Fetching job output for:', jobId);
   
-  const job = await publicClient.readContract({
+  const jobOutputOurl = await publicClient.readContract({
     address: config.jobsModuleAddress,
     abi: HyptJobsABI,
-    functionName: 'getJob',
+    functionName: 'getMultihopOutputUrl',
     args: [jobId as `0x${string}`]
   });
 
-  console.log('Job state:', job);
+  console.log('Job output URL:', jobOutputOurl);
   
-  // Note: The actual output URL is stored elsewhere in your system
-  // For now, we'll need to get it from the CompleteJob event
-  return 'Output stored in event logs';
+  return jobOutputOurl;
 }
 
 export function prepareJobSteps(descriptions: string[]): JobStepParams[] {
